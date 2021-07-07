@@ -6,6 +6,11 @@ Path to data folder containing "VTK_seperate_layers_3VTK/" folder with layers 10
 
 Also needs the meshtool binary name.
 
+## Example
+Showing a mesh generated from an Adas3D dataset. Blue is healthy (tag=1), light read is border zone (tag=2), and dark red is scar (tag=3)
+
+/home/cmc16/Dropbox/DutchCMRData/VTK_seperate_layers_3VTK/lv_mesh_tagged.png![lv_mesh_tagged](https://user-images.githubusercontent.com/81109384/124743326-8abecf00-df15-11eb-9616-833ea6ad0ff9.png)
+
 ## Requirements
 Python 3.6
 Numpy 1.18.5
