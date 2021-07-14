@@ -1,6 +1,13 @@
 import argparse
 import numpy as np
 import os
+import pyvista as pv
+
+def read_vtk_polydata(mesh_name):
+  mesh = pv.read(mesh_name+".vtk")
+  data = mesh.active_scalars
+  
+  return data
 
 
 def get_layer(meshtool_bin, region_name, excluded_name, point_cloud, tags_data, region_tag, excluded_tag):
