@@ -4,42 +4,42 @@ import os
 import pyvista as pv
 
 def read_vtk_polydata(mesh_name):
-  mesh = pv.read(mesh_name+".vtk")
+  mesh = pv.read(mesh_name)
+  pts = mesh.points
   data = mesh.active_scalars
   
-  return data
+  return pts, data
 
 
-def get_layer(meshtool_bin, region_name, excluded_name, point_cloud, tags_data, region_tag, excluded_tag):
-  # convert to CARP format
-  if not os.path.isfile(region_name+".pts"):
-    cmd = "%s convert -imsh=%s.vtk -omsh=%s  -ofmt=carp_txt"%(meshtool_bin, region_name, region_name)
-    os.system(cmd)
-  
-  if not os.path.isfile(excluded_name+".pts"):
-    cmd = "%s convert -imsh=%s.vtk -omsh=%s  -ofmt=carp_txt"%(meshtool_bin, excluded_name, excluded_name)
-    os.system(cmd)
-
-  # read surface points
-  region_pts = np.loadtxt(region_name+".pts", skiprows=1, dtype=float)
-  excluded_pts = np.loadtxt(excluded_name+".pts", skiprows=1, dtype=float)
-  
-  # create tags 
-  region_tags = np.ones(len(region_pts))*region_tag
-  
+def get_excluded_ids(region_pts, excluded_pts):
   # find closest region point and change tag - this is to remove the "excluded layer" from other regions
   npts = len(excluded_pts)
+  ids = np.ones(npts, dtype=int)
   for i in range(npts):    
-    idx = np.sum((region_pts - excluded_pts[i,:])**2, axis=1).argmin() # min distance
-    region_tags[idx] = excluded_tag    
+    ids[i] = np.sum((region_pts - excluded_pts[i,:])**2, axis=1).argmin() # min distance
+  
+  return ids
+
+    
+def get_region_layer(region_name, excluded_name, point_cloud, tags_data, region_tag, excluded_tag):
+
+  # read surface points
+  region_pts, _ = read_vtk_polydata(region_name+".vtk")
+  excluded_pts, _ = read_vtk_polydata(excluded_name+".vtk")
+
+  region_tags = np.ones(len(region_pts), dtype=int)*region_tag
+  
+  # find change tag in excluded regions
+  ids = get_excluded_ids(region_pts, excluded_pts)
+  region_tags[ids] = excluded_tag
     
   # concatenate points and tags
   point_cloud = np.concatenate((point_cloud, region_pts), axis=0)
-  tags_data = np.concatenate((tags_data.T,region_tags), axis=0)      
+  tags_data = np.concatenate((tags_data.T,region_tags), axis=0)
   
   return point_cloud, tags_data
     
-def get_point_cloud_tags(meshtool_bin, mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag):
+def get_point_cloud_tags_from_regions(mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag):
   
   if not os.path.isfile(full_pts_name):
     print("Creating point cloud and tags with all layers...")
@@ -55,17 +55,17 @@ def get_point_cloud_tags(meshtool_bin, mesh_dir, full_pts_name, full_tags_name, 
       # healthy
       healthy_name = "%s/Layer%d/HE_%d"%(mesh_dir, layer, layer)
       if os.path.isfile(healthy_name+".vtk") and os.path.isfile(excluded_name+".vtk"):
-        point_cloud, tags_data = get_layer(meshtool_bin, healthy_name, excluded_name, point_cloud, tags_data, healthy_tag, excluded_tag)
+        point_cloud, tags_data = get_region_layer(healthy_name, excluded_name, point_cloud, tags_data, healthy_tag, excluded_tag)
         
       # BZ
       bz_name = "%s/Layer%d/BZ_%d"%(mesh_dir, layer, layer)
       if os.path.isfile(bz_name+".vtk") and os.path.isfile(excluded_name+".vtk"):
-        point_cloud, tags_data = get_layer(meshtool_bin, bz_name, excluded_name, point_cloud, tags_data, bz_tag, excluded_tag)
+        point_cloud, tags_data = get_region_layer(bz_name, excluded_name, point_cloud, tags_data, bz_tag, excluded_tag)
         
       # core
       core_name = "%s/Layer%d/CO_%d"%(mesh_dir, layer, layer)
       if os.path.isfile(core_name+".vtk") and os.path.isfile(excluded_name+".vtk"):
-        point_cloud, tags_data = get_layer(meshtool_bin, core_name, excluded_name, point_cloud, tags_data, core_tag, excluded_tag)
+        point_cloud, tags_data = get_region_layer(core_name, excluded_name, point_cloud, tags_data, core_tag, excluded_tag)
 
 
     # write out full point cloud and data 
@@ -112,8 +112,8 @@ def main(args):
   mesh_dir = args.adas_folder + "/VTK_seperate_layers_3VTK/"
   meshtool_bin = args.meshtool_bin
 
-  full_pts_name = "%s/point_cloud.pts"%(mesh_dir)
-  full_tags_name = "%s/tags.dat"%(mesh_dir)
+  full_pts_name = "%s/point_cloud_test.pts"%(mesh_dir)
+  full_tags_name = "%s/tags_test.dat"%(mesh_dir)
   
   healthy_tag = 1
   bz_tag = 2
@@ -121,33 +121,33 @@ def main(args):
   excluded_tag = healthy_tag # same as healthy
   
   # create point cloud with all layers and generate tags
-  get_point_cloud_tags(meshtool_bin, mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag)
+  get_point_cloud_tags_from_regions(mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag)
 
   # generate tet mesh from LV surface
   lv_surf_name = "%s/Other/LV_M-DE-MRI.vtk"%mesh_dir
-  lv_mesh_name = "%s/lv_mesh"%mesh_dir
+  lv_mesh_name = "%s/lv_mesh_test"%mesh_dir
   if not os.path.isfile(lv_mesh_name+".elem"):
     cmd = "%s generate mesh -surf=%s -ifmt=vtk -outmsh=%s -ofmt=carp_txt"%(meshtool_bin, lv_surf_name, lv_mesh_name)
     print(cmd)
     os.system(cmd)
 
   # interpolate point cloud data onto tet mesh
-  full_tags_name_pts = "%s/lv_mesh_tags_pts.dat"%(mesh_dir)
+  full_tags_name_pts = lv_mesh_name + "_tags_pts.dat"
   if not os.path.isfile(full_tags_name_pts):
     cmd = "%s interpolate clouddata -omsh=%s -pts=%s -idat=%s -odat=%s -mode=1"%(meshtool_bin, lv_mesh_name, full_pts_name, full_tags_name, full_tags_name_pts)
     print(cmd)
     os.system(cmd)
   
   # interpolate tags from nodes to elements
-  full_tags_name_elem = "%s/lv_mesh_tags_elem.dat"%(mesh_dir)
+  full_tags_name_elem = lv_mesh_name + "_tags_elem.dat"
   if not os.path.isfile(full_tags_name_elem):
     cmd = "%s interpolate node2elem -omsh=%s -idat=%s -odat=%s"%(meshtool_bin, lv_mesh_name, full_tags_name_pts, full_tags_name_elem)
     print(cmd)
     os.system(cmd)
   
   # round tags to nearest integer and assign to mesh
-  full_tags_name_elem_int = "%s/lv_mesh_tags_elem_int.dat"%(mesh_dir)
-  lv_mesh_name_tag = "%s/lv_mesh_tagged"%mesh_dir
+  full_tags_name_elem_int = lv_mesh_name + "_tags_elem_int.dat"
+  lv_mesh_name_tag = lv_mesh_name + "_tagged"
   assign_int_tags(full_tags_name_elem, full_tags_name_elem_int, lv_mesh_name, lv_mesh_name_tag)
   
       
