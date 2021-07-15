@@ -21,23 +21,66 @@ def get_excluded_ids(region_pts, excluded_pts):
   return ids
 
     
-def get_region_layer(region_name, excluded_name, point_cloud, tags_data, region_tag, excluded_tag):
+#def get_layer(layer_name, excluded_name, point_cloud, tags_data, excluded_tag, region_tags=[1,2,3], bz_scar_thresholds=[0.6,0.8]):
+def get_layer(layer_name, excluded_name, point_cloud, tags_data, excluded_tag, region_tags=[], bz_scar_thresholds=[]):
 
   # read surface points
-  region_pts, _ = read_vtk_polydata(region_name+".vtk")
+  layer_pts, layer_data = read_vtk_polydata(layer_name+".vtk")
   excluded_pts, _ = read_vtk_polydata(excluded_name+".vtk")
 
-  region_tags = np.ones(len(region_pts), dtype=int)*region_tag
-  
+  layer_tags = np.ones(len(layer_pts), dtype=int)*region_tags[0] # healthy or region tag
+
+  # using LV layers instead of scar and BZ surfaces
+  if len(bz_scar_thresholds) > 0:
+    # apply BZ threshold
+    bz = layer_data > bz_scar_thresholds[0]
+    layer_tags[bz] = region_tags[1] # BZ tag
+    
+    # apply scar threshold
+    scar = layer_data > bz_scar_thresholds[1]
+    layer_tags[scar] = region_tags[2] # scar tag
+
   # find change tag in excluded regions
-  ids = get_excluded_ids(region_pts, excluded_pts)
-  region_tags[ids] = excluded_tag
+  ids = get_excluded_ids(layer_pts, excluded_pts)
+  layer_tags[ids] = excluded_tag
     
   # concatenate points and tags
-  point_cloud = np.concatenate((point_cloud, region_pts), axis=0)
-  tags_data = np.concatenate((tags_data.T,region_tags), axis=0)
+  point_cloud = np.concatenate((point_cloud, layer_pts), axis=0)
+  tags_data = np.concatenate((tags_data.T,layer_tags), axis=0)
   
   return point_cloud, tags_data
+
+
+#def get_region_layer(region_name, excluded_name, point_cloud, tags_data, region_tag, excluded_tag):
+
+  ## read surface points
+  #region_pts, _ = read_vtk_polydata(region_name+".vtk")
+  #excluded_pts, _ = read_vtk_polydata(excluded_name+".vtk")
+
+  #region_tags = np.ones(len(region_pts), dtype=int)*region_tag
+  
+  ## find change tag in excluded regions
+  #ids = get_excluded_ids(region_pts, excluded_pts)
+  #region_tags[ids] = excluded_tag
+    
+  ## concatenate points and tags
+  #point_cloud = np.concatenate((point_cloud, region_pts), axis=0)
+  #tags_data = np.concatenate((tags_data.T,region_tags), axis=0)
+  
+  #return point_cloud, tags_data
+
+
+def write_point_cloud_data(full_pts_name, full_tags_name, point_cloud, tags_data):
+    npoints = len(point_cloud)
+    with open(full_pts_name, 'w') as f:
+      f.write("%d\n"%(npoints-1))
+      for i in range(1,npoints):
+        f.write("%f %f %f\n"%(point_cloud[i][0],point_cloud[i][1],point_cloud[i][2]))
+
+    with open(full_tags_name, 'w') as f:
+      for i in range(1,npoints):
+        f.write("%d\n"%(tags_data[i]))
+      
     
 def get_point_cloud_tags_from_regions(mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag):
   
@@ -55,30 +98,22 @@ def get_point_cloud_tags_from_regions(mesh_dir, full_pts_name, full_tags_name, h
       # healthy
       healthy_name = "%s/Layer%d/HE_%d"%(mesh_dir, layer, layer)
       if os.path.isfile(healthy_name+".vtk") and os.path.isfile(excluded_name+".vtk"):
-        point_cloud, tags_data = get_region_layer(healthy_name, excluded_name, point_cloud, tags_data, healthy_tag, excluded_tag)
+        #get_layer(layer_name, excluded_name, point_cloud, tags_data, excluded_tag, region_tags=[], bz_scar_thresholds=[])
+        point_cloud, tags_data = get_layer(healthy_name, excluded_name, point_cloud, tags_data, excluded_tag, [healthy_tag])
         
       # BZ
       bz_name = "%s/Layer%d/BZ_%d"%(mesh_dir, layer, layer)
       if os.path.isfile(bz_name+".vtk") and os.path.isfile(excluded_name+".vtk"):
-        point_cloud, tags_data = get_region_layer(bz_name, excluded_name, point_cloud, tags_data, bz_tag, excluded_tag)
+        point_cloud, tags_data = get_layer(bz_name, excluded_name, point_cloud, tags_data, excluded_tag, [bz_tag])
         
       # core
       core_name = "%s/Layer%d/CO_%d"%(mesh_dir, layer, layer)
       if os.path.isfile(core_name+".vtk") and os.path.isfile(excluded_name+".vtk"):
-        point_cloud, tags_data = get_region_layer(core_name, excluded_name, point_cloud, tags_data, core_tag, excluded_tag)
-
+        point_cloud, tags_data = get_layer(core_name, excluded_name, point_cloud, tags_data, excluded_tag, [core_tag])
 
     # write out full point cloud and data 
-    npoints = len(point_cloud)
-    with open(full_pts_name, 'w') as f:
-      f.write("%d\n"%(npoints-1))
-      for i in range(1,npoints):
-        f.write("%f %f %f\n"%(point_cloud[i][0],point_cloud[i][1],point_cloud[i][2]))
+    write_point_cloud_data(full_pts_name, full_tags_name, point_cloud, tags_data)
 
-    with open(full_tags_name, 'w') as f:
-      for i in range(1,npoints):
-        f.write("%d\n"%(tags_data[i]))
-      
     
 def assign_int_tags(full_tags_name_elem, full_tags_name_elem_int, lv_mesh_name, lv_mesh_name_tag):
   # round tag to nearest integer
