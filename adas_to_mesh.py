@@ -85,34 +85,62 @@ def write_point_cloud_data(full_pts_name, full_tags_name, point_cloud, tags_data
 def get_point_cloud_tags_from_regions(mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag):
   
   if not os.path.isfile(full_pts_name):
-    print("Creating point cloud and tags with all layers...")
+    print("Creating point cloud and tags using region layers...")
     
     point_cloud = np.empty([1,3])
     tags_data = np.empty([1,])
     
     # read in all surfaces as points clouds and concatate points and tags, excluding "excluded" surfaces
-    for layer in range(10,100,10):
-      # excluded
-      excluded_name = "%s/Layer%d/EX_%d"%(mesh_dir, layer, layer)
+    files_list = os.listdir(mesh_dir)
+    for file_name in files_list:
+      if file_name.startswith("Layer"):
+        layer = file_name.split("Layer")[1]
+        # excluded
+        excluded_name = "%s/Layer%s/EX_%s"%(mesh_dir, layer, layer)
 
-      # healthy
-      healthy_name = "%s/Layer%d/HE_%d"%(mesh_dir, layer, layer)
-      if os.path.isfile(healthy_name+".vtk") and os.path.isfile(excluded_name+".vtk"):
-        #get_layer(layer_name, excluded_name, point_cloud, tags_data, excluded_tag, region_tags=[], bz_scar_thresholds=[])
-        point_cloud, tags_data = get_layer(healthy_name, excluded_name, point_cloud, tags_data, excluded_tag, [healthy_tag])
-        
-      # BZ
-      bz_name = "%s/Layer%d/BZ_%d"%(mesh_dir, layer, layer)
-      if os.path.isfile(bz_name+".vtk") and os.path.isfile(excluded_name+".vtk"):
-        point_cloud, tags_data = get_layer(bz_name, excluded_name, point_cloud, tags_data, excluded_tag, [bz_tag])
-        
-      # core
-      core_name = "%s/Layer%d/CO_%d"%(mesh_dir, layer, layer)
-      if os.path.isfile(core_name+".vtk") and os.path.isfile(excluded_name+".vtk"):
-        point_cloud, tags_data = get_layer(core_name, excluded_name, point_cloud, tags_data, excluded_tag, [core_tag])
+        # healthy
+        healthy_name = "%s/Layer%s/HE_%s"%(mesh_dir, layer, layer)
+        if os.path.isfile(healthy_name+".vtk") and os.path.isfile(excluded_name+".vtk"):
+          #get_layer(layer_name, excluded_name, point_cloud, tags_data, excluded_tag, region_tags=[], bz_scar_thresholds=[])
+          point_cloud, tags_data = get_layer(healthy_name, excluded_name, point_cloud, tags_data, excluded_tag, [healthy_tag])
+          
+        # BZ
+        bz_name = "%s/Layer%s/BZ_%s"%(mesh_dir, layer, layer)
+        if os.path.isfile(bz_name+".vtk") and os.path.isfile(excluded_name+".vtk"):
+          point_cloud, tags_data = get_layer(bz_name, excluded_name, point_cloud, tags_data, excluded_tag, [bz_tag])
+          
+        # core
+        core_name = "%s/Layer%s/CO_%s"%(mesh_dir, layer, layer)
+        if os.path.isfile(core_name+".vtk") and os.path.isfile(excluded_name+".vtk"):
+          point_cloud, tags_data = get_layer(core_name, excluded_name, point_cloud, tags_data, excluded_tag, [core_tag])
 
     # write out full point cloud and data 
     write_point_cloud_data(full_pts_name, full_tags_name, point_cloud, tags_data)
+
+def get_point_cloud_tags_from_lv(mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag, bz_scar_thresholds):
+  
+  if not os.path.isfile(full_pts_name):
+    print("Creating point cloud and tags using LV layers ...")
+    
+    point_cloud = np.empty([1,3])
+    tags_data = np.empty([1,])
+    
+    tags_list = [healthy_tag, bz_tag, core_tag]
+    
+    files_list = os.listdir(mesh_dir)
+    for file_name in files_list:
+      if file_name.endswith("_Excluded-DE-MRI.vtk"):
+        base_name = file_name.split["_Excluded"][0]
+        layer_name = base_name + "-DE-MRI"
+        excluded_name = base_name + "_Excluded-DE-MRI"
+      
+        # healthy
+        if os.path.isfile(layer_name+".vtk"):
+          #get_layer(layer_name, excluded_name, point_cloud, tags_data, excluded_tag, region_tags=[], bz_scar_thresholds=[])
+          point_cloud, tags_data = get_layer(layer_name, excluded_name, point_cloud, tags_data, excluded_tag, tags_list, bz_scar_thresholds)          
+
+      # write out full point cloud and data 
+      write_point_cloud_data(full_pts_name, full_tags_name, point_cloud, tags_data)
 
     
 def assign_int_tags(full_tags_name_elem, full_tags_name_elem_int, lv_mesh_name, lv_mesh_name_tag):
@@ -143,9 +171,14 @@ def assign_int_tags(full_tags_name_elem, full_tags_name_elem_int, lv_mesh_name, 
   
   
 def main(args):
+  
   # set arguments
-  mesh_dir = args.adas_folder + "/VTK_seperate_layers_3VTK/"
+  mesh_dir = args.adas_folder[0] # + "/VTK_seperate_layers_3VTK/"
   meshtool_bin = args.meshtool_bin
+
+  # check arguments
+  if not os.path.isdir(mesh_dir):
+    raise NameError("ADAS folder %s not found"%args.adas_folder[0])
 
   full_pts_name = "%s/point_cloud_test.pts"%(mesh_dir)
   full_tags_name = "%s/tags_test.dat"%(mesh_dir)
@@ -191,8 +224,10 @@ if __name__== "__main__":
   parser = argparse.ArgumentParser()
   parser.formtter_class = argparse.ArgumentDefaultsHelpFormatter
   
-  parser.add_argument('--adas_folder', type=str, default=None, help='Provide the directory for the Adas3D data. Must contain the VTK_seperate_layers_3VTK folder')
-  parser.add_argument('--meshtool_bin', type=str, default="meshtool", help='Provide name of meshtool binary')
+  parser.add_argument('--adas_folder', type=str, default=None, nargs='+', help='Provide the directory for the Adas3D data. For a threshold-based mesh, this is the path to the VTK_seperate_layers_3VTK folder. For a surface-based, this is the path to the VTK_seperate_layers folder.')
+  parser.add_argument('--meshtool_bin', type=str, default="meshtool", nargs='?', help='Provide name of meshtool binary')
+  parser.add_argument('--scar_threshold', type=float, default=None, nargs='?', help='For a threshold-based mesh define the scar threshold')
+  parser.add_argument('--bz_threshold', type=float, default=None, nargs='?', help='For a threshold-based mesh define the bz threshold')
   args = parser.parse_args()
   
   main(args)
