@@ -22,7 +22,6 @@ def get_excluded_ids(region_pts, excluded_pts):
   return ids
 
     
-#def get_layer(layer_name, excluded_name, point_cloud, tags_data, excluded_tag, region_tags=[1,2,3], bz_scar_thresholds=[0.6,0.8]):
 def get_layer(layer_name, excluded_name, point_cloud, tags_data, excluded_tag, region_tags=[], bz_scar_thresholds=[]):
 
   # read surface points
@@ -50,25 +49,6 @@ def get_layer(layer_name, excluded_name, point_cloud, tags_data, excluded_tag, r
   tags_data = np.concatenate((tags_data.T,layer_tags), axis=0)
   
   return point_cloud, tags_data
-
-
-#def get_region_layer(region_name, excluded_name, point_cloud, tags_data, region_tag, excluded_tag):
-
-  ## read surface points
-  #region_pts, _ = read_vtk_polydata(region_name+".vtk")
-  #excluded_pts, _ = read_vtk_polydata(excluded_name+".vtk")
-
-  #region_tags = np.ones(len(region_pts), dtype=int)*region_tag
-  
-  ## find change tag in excluded regions
-  #ids = get_excluded_ids(region_pts, excluded_pts)
-  #region_tags[ids] = excluded_tag
-    
-  ## concatenate points and tags
-  #point_cloud = np.concatenate((point_cloud, region_pts), axis=0)
-  #tags_data = np.concatenate((tags_data.T,region_tags), axis=0)
-  
-  #return point_cloud, tags_data
 
 
 def write_point_cloud_data(full_pts_name, full_tags_name, point_cloud, tags_data):
@@ -167,12 +147,14 @@ def assign_int_tags(full_tags_name_elem, full_tags_name_elem_int, lv_mesh_name, 
     os.system(cmd)
     cmd="ln -s %s.pts %s.pts"%(lv_mesh_name, lv_mesh_name_tag)
     os.system(cmd)
+  else:
+    print("%s already exists. No tags assigned."%lv_mesh_name_tag)
   
   
 def main(args):
   
   # set arguments
-  mesh_dir = args.adas_folder[0] # + "/VTK_seperate_layers_3VTK/"
+  mesh_dir = args.adas_folder[0]
   meshtool_bin = args.meshtool_bin
   scar_threshold = args.scar_threshold
   bz_threshold = args.bz_threshold
@@ -190,17 +172,17 @@ def main(args):
   excluded_tag = healthy_tag # same as healthy
   
   # create point cloud with all layers and generate tags
-  if scar_threshold and bz_threshold:
-    assert(scar_threshold>bz_threshold)
+  if scar_threshold and bz_threshold: # Using LV layer and thresholds
+    if bz_threshold > scar_threshold:
+      raise ValueError("The border zone thrshold must be smaller than the scar threshold")
+    
     bz_scar_thresholds = [bz_threshold, scar_threshold]
     get_point_cloud_tags_from_lv(mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag, bz_scar_thresholds)
-  else:
-    get_point_cloud_tags_from_regions(mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag)
-  
+  else: # Using regions surfaces
+    get_point_cloud_tags_from_regions(mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag)  
 
   # generate tet mesh from LV surface
   if scar_threshold and bz_threshold:
-    #VT002_Left Ventricle-DE-MRI.vtk
     tmp_name = glob.glob("%s/*Left Ventricle-DE-MRI.vtk"%mesh_dir)
     lv_surf_name = "\"" + tmp_name[0] + "\""
   else:
@@ -208,28 +190,53 @@ def main(args):
 
   lv_mesh_name = "%s/lv_mesh_test"%mesh_dir
   if not os.path.isfile(lv_mesh_name+".elem"):
+    if not os.path.isfile(lv_surf_name):
+      raise NameError("LV surface file not found: %s"%lv_surf_name)
+    
     cmd = "%s generate mesh -surf=%s -ifmt=vtk -outmsh=%s -ofmt=carp_txt"%(meshtool_bin, lv_surf_name, lv_mesh_name)
     print(cmd)
     os.system(cmd)
+  else:
+    print("%s already exists. Mesh not generated."%lv_mesh_name)
+    
+  # refine mesh for Eikonal or monodomain simulation
+  if args.monodomain == 1:
+    mesh_res = 0.35 
+  else:
+    mesh_res = 0.8 # coarse mesh for Eikonal
+    
+  lv_mesh_name_ref = lv_mesh_name + "_%dum"%int(mesh_res*1000)
+  if not os.path.isfile(lv_mesh_name_ref+".elem"):
+    cmd = "%s resample mesh -msh=%s -avrg=%1.2f -outmsh=%s -postsmth=0 -ofmt=carp_txt"%(meshtool_bin, lv_mesh_name, mesh_res, lv_mesh_name_ref)
+    print(cmd)
+    os.system(cmd)
+  else:
+    print("%s already exists. No mesh refinement done."%lv_mesh_name_ref)    
+    
 
   # interpolate point cloud data onto tet mesh
-  full_tags_name_pts = lv_mesh_name + "_tags_pts.dat"
+  full_tags_name_pts = lv_mesh_name_ref + "_tags_pts.dat"
   if not os.path.isfile(full_tags_name_pts):
-    cmd = "%s interpolate clouddata -omsh=%s -pts=%s -idat=%s -odat=%s -mode=1"%(meshtool_bin, lv_mesh_name, full_pts_name, full_tags_name, full_tags_name_pts)
+    cmd = "%s interpolate clouddata -omsh=%s -pts=%s -idat=%s -odat=%s -mode=1"%(meshtool_bin, lv_mesh_name_ref, full_pts_name, full_tags_name, full_tags_name_pts)
     print(cmd)
     os.system(cmd)
+  else:
+    print("%s already exists. No interpolation done."%full_tags_name_pts)
   
   # interpolate tags from nodes to elements
-  full_tags_name_elem = lv_mesh_name + "_tags_elem.dat"
+  full_tags_name_elem = lv_mesh_name_ref + "_tags_elem.dat"
   if not os.path.isfile(full_tags_name_elem):
-    cmd = "%s interpolate node2elem -omsh=%s -idat=%s -odat=%s"%(meshtool_bin, lv_mesh_name, full_tags_name_pts, full_tags_name_elem)
+    cmd = "%s interpolate node2elem -omsh=%s -idat=%s -odat=%s"%(meshtool_bin, lv_mesh_name_ref, full_tags_name_pts, full_tags_name_elem)
     print(cmd)
     os.system(cmd)
+  else:
+    print("%s already exists. No interpolation done."%full_tags_name_elem)
+    
   
   # round tags to nearest integer and assign to mesh
-  full_tags_name_elem_int = lv_mesh_name + "_tags_elem_int.dat"
-  lv_mesh_name_tag = lv_mesh_name + "_tagged"
-  assign_int_tags(full_tags_name_elem, full_tags_name_elem_int, lv_mesh_name, lv_mesh_name_tag)
+  full_tags_name_elem_int = lv_mesh_name_ref + "_tags_elem_int.dat"
+  lv_mesh_name_tag = lv_mesh_name_ref + "_tagged"
+  assign_int_tags(full_tags_name_elem, full_tags_name_elem_int, lv_mesh_name_ref, lv_mesh_name_tag)
   
       
 if __name__== "__main__":
@@ -241,6 +248,8 @@ if __name__== "__main__":
   parser.add_argument('--meshtool_bin', type=str, default="meshtool", nargs='?', help='Provide name of meshtool binary')
   parser.add_argument('--scar_threshold', type=float, default=None, nargs='?', help='For a threshold-based mesh define the scar threshold')
   parser.add_argument('--bz_threshold', type=float, default=None, nargs='?', help='For a threshold-based mesh define the bz threshold')
+  parser.add_argument('--monodomain', type=int, default=0, nargs='?', help='Refine mesh to 350um for monodomain simulation. Otherwise, the mesh is refined to 800um for Eikonal simulations.')
+  
   args = parser.parse_args()
   
   main(args)
