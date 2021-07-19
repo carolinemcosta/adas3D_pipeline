@@ -2,6 +2,7 @@ import argparse
 import numpy as np
 import os
 import pyvista as pv
+import glob
 
 def read_vtk_polydata(mesh_name):
   mesh = pv.read(mesh_name)
@@ -130,13 +131,11 @@ def get_point_cloud_tags_from_lv(mesh_dir, full_pts_name, full_tags_name, health
     files_list = os.listdir(mesh_dir)
     for file_name in files_list:
       if file_name.endswith("_Excluded-DE-MRI.vtk"):
-        base_name = file_name.split["_Excluded"][0]
+        base_name = file_name.split("_Excluded")[0]
         layer_name = base_name + "-DE-MRI"
         excluded_name = base_name + "_Excluded-DE-MRI"
       
-        # healthy
         if os.path.isfile(layer_name+".vtk"):
-          #get_layer(layer_name, excluded_name, point_cloud, tags_data, excluded_tag, region_tags=[], bz_scar_thresholds=[])
           point_cloud, tags_data = get_layer(layer_name, excluded_name, point_cloud, tags_data, excluded_tag, tags_list, bz_scar_thresholds)          
 
       # write out full point cloud and data 
@@ -175,6 +174,8 @@ def main(args):
   # set arguments
   mesh_dir = args.adas_folder[0] # + "/VTK_seperate_layers_3VTK/"
   meshtool_bin = args.meshtool_bin
+  scar_threshold = args.scar_threshold
+  bz_threshold = args.bz_threshold
 
   # check arguments
   if not os.path.isdir(mesh_dir):
@@ -189,10 +190,22 @@ def main(args):
   excluded_tag = healthy_tag # same as healthy
   
   # create point cloud with all layers and generate tags
-  get_point_cloud_tags_from_regions(mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag)
+  if scar_threshold and bz_threshold:
+    assert(scar_threshold>bz_threshold)
+    bz_scar_thresholds = [bz_threshold, scar_threshold]
+    get_point_cloud_tags_from_lv(mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag, bz_scar_thresholds)
+  else:
+    get_point_cloud_tags_from_regions(mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag)
+  
 
   # generate tet mesh from LV surface
-  lv_surf_name = "%s/Other/LV_M-DE-MRI.vtk"%mesh_dir
+  if scar_threshold and bz_threshold:
+    #VT002_Left Ventricle-DE-MRI.vtk
+    tmp_name = glob.glob("%s/*Left Ventricle-DE-MRI.vtk"%mesh_dir)
+    lv_surf_name = "\"" + tmp_name[0] + "\""
+  else:
+    lv_surf_name = "%s/Other/LV_M-DE-MRI.vtk"%mesh_dir
+
   lv_mesh_name = "%s/lv_mesh_test"%mesh_dir
   if not os.path.isfile(lv_mesh_name+".elem"):
     cmd = "%s generate mesh -surf=%s -ifmt=vtk -outmsh=%s -ofmt=carp_txt"%(meshtool_bin, lv_surf_name, lv_mesh_name)
