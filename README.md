@@ -5,13 +5,15 @@ Repository for pipeline prototype to create labeled volumetric meshes from Adas3
 
 A mesh can be generated using the surfaces defining scar, BZ, and healthy regions. In this case, the mesh tags are generated based on each surface. An example of usage is shown below. A coarse mesh (resolution=0.8mm), appropriate for Eikonal simulations is generated.
 
-Usage:
-python3 adas_to_mesh.py --adas_folder="VTK_seperate_layers_3VTK" --mesh_res=0.8 --mesh_name="lv_mesh_eikonal"
+**Usage:**
+
+`python3 adas_to_mesh.py --adas_folder="VTK_seperate_layers_3VTK" --mesh_res=0.8 --mesh_name="lv_mesh_eikonal"`
 
 A mesh can be also generated using the LV surface layers defining with a scalar field representing the normalized LGE intensity. In this case, the mesh tags for  scar, BZ, and healthy are generated based set thresholds for BZ ans scar. An example of usage is shown below. A fine mesh (resolution=0.35mm), appropriate for monodomain simulations is generated.
 
-Usage:
-python3 adas_to_mesh.py --adas_folder="VTK_seperate_layers" --scar_threshold=0.8 --bz_threshold=0.6 --mesh_res=0.35 --mesh_name="lv_mesh_monodomain"
+**Usage:**
+
+`python3 adas_to_mesh.py --adas_folder="VTK_seperate_layers" --scar_threshold=0.8 --bz_threshold=0.6 --mesh_res=0.35 --mesh_name="lv_mesh_monodomain"`
 
 Example mesh generated from an Adas3D dataset using threshold method. Blue is healthy (tag=1), light read is border zone (tag=2), and dark red is scar (tag=3)
 
