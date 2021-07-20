@@ -219,6 +219,9 @@ def main(args):
   lv_mesh_name_tag = lv_mesh_name_ref + "_tagged"
   assign_int_tags(full_tags_name_elem, full_tags_name_elem_int, lv_mesh_name_ref, lv_mesh_name_tag)
   
+  # convert from mm to um
+  mc.to_mm(meshtool_bin, lv_mesh_name_tag)
+  
       
 if __name__== "__main__":
   

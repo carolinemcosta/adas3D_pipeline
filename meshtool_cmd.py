@@ -38,3 +38,13 @@ def node2elem(meshtool_bin, mesh_name, tags_name_pts, tags_name_elem):
     os.system(cmd)
   else:
     print("%s already exists. No interpolation done."%tags_name_elem)
+    
+def to_mm(meshtool_bin, mesh_name):
+  mesh_name_um = mesh_name + "_um"
+  if not os.path.isfile(mesh_name_um+".elem"):    
+    cmd = "%s convert -imsh=%s -omsh=%s -ofmt=carp_txt"%(meshtool_bin, mesh_name, mesh_name_um)
+    print(cmd)
+    os.system(cmd)
+  else:
+    print("%s already exists. No scaling done."%mesh_name_um)
+    
