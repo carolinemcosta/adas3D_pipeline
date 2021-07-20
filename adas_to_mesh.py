@@ -4,12 +4,29 @@ import os
 import pyvista as pv
 import glob
 
+import meshtool_cmd as mc
+
+
 def read_vtk_polydata(mesh_name):
   mesh = pv.read(mesh_name)
   pts = mesh.points
   data = mesh.active_scalars
   
   return pts, data
+
+
+def write_point_cloud_data(full_pts_name, full_tags_name, point_cloud, tags_data):
+  npoints = len(point_cloud)
+  fp = open(full_pts_name, 'w')
+  fd = open(full_tags_name, 'w')
+
+  fp.write("%d\n"%(npoints-1))
+  for i in range(1,npoints): # skip first line of concatated array
+    fp.write("%f %f %f\n"%(point_cloud[i][0],point_cloud[i][1],point_cloud[i][2]))
+    fd.write("%d\n"%(tags_data[i]))
+
+  fp.close()
+  fd.close()
 
 
 def get_excluded_ids(region_pts, excluded_pts):
@@ -51,20 +68,7 @@ def get_layer(layer_name, excluded_name, point_cloud, tags_data, excluded_tag, r
   return point_cloud, tags_data
 
 
-def write_point_cloud_data(full_pts_name, full_tags_name, point_cloud, tags_data):
-    npoints = len(point_cloud)
-    with open(full_pts_name, 'w') as f:
-      f.write("%d\n"%(npoints-1))
-      for i in range(1,npoints):
-        f.write("%f %f %f\n"%(point_cloud[i][0],point_cloud[i][1],point_cloud[i][2]))
-
-    with open(full_tags_name, 'w') as f:
-      for i in range(1,npoints):
-        f.write("%d\n"%(tags_data[i]))
-      
-    
-def get_point_cloud_tags_from_regions(mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag):
-  
+def get_point_cloud_tags_from_regions(mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag):  
   if not os.path.isfile(full_pts_name):
     print("Creating point cloud and tags using region layers...")
     
@@ -97,9 +101,9 @@ def get_point_cloud_tags_from_regions(mesh_dir, full_pts_name, full_tags_name, h
 
     # write out full point cloud and data 
     write_point_cloud_data(full_pts_name, full_tags_name, point_cloud, tags_data)
+    
 
-def get_point_cloud_tags_from_lv(mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag, bz_scar_thresholds):
-  
+def get_point_cloud_tags_from_lv(mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag, bz_scar_thresholds):  
   if not os.path.isfile(full_pts_name):
     print("Creating point cloud and tags using LV layers ...")
     
@@ -118,22 +122,22 @@ def get_point_cloud_tags_from_lv(mesh_dir, full_pts_name, full_tags_name, health
         if os.path.isfile(layer_name+".vtk"):
           point_cloud, tags_data = get_layer(layer_name, excluded_name, point_cloud, tags_data, excluded_tag, tags_list, bz_scar_thresholds)          
 
-      # write out full point cloud and data 
-      write_point_cloud_data(full_pts_name, full_tags_name, point_cloud, tags_data)
+    # write out full point cloud and data 
+    write_point_cloud_data(full_pts_name, full_tags_name, point_cloud, tags_data)
 
     
 def assign_int_tags(full_tags_name_elem, full_tags_name_elem_int, lv_mesh_name, lv_mesh_name_tag):
-  # round tag to nearest integer
-  if not os.path.isfile(full_tags_name_elem_int):
-    print("Formatting tags...")    
-    tag_data = np.loadtxt(full_tags_name_elem, dtype=float)
-    tag_data_int = np.rint(tag_data)    
-    np.savetxt(full_tags_name_elem_int, tag_data_int, fmt='%d')  
-  else:
-    tag_data_int = np.loadtxt(full_tags_name_elem_int, dtype=int)
-  
   # assign tags to new mesh
   if not os.path.isfile(lv_mesh_name_tag+".elem"):
+    # round tag to nearest integer
+    if not os.path.isfile(full_tags_name_elem_int):
+      print("Formatting tags...")    
+      tag_data = np.loadtxt(full_tags_name_elem, dtype=float)
+      tag_data_int = np.rint(tag_data)    
+      np.savetxt(full_tags_name_elem_int, tag_data_int, fmt='%d')  
+    else:
+      tag_data_int = np.loadtxt(full_tags_name_elem_int, dtype=int)
+      
     print("Assigning tags...")
     elems = np.loadtxt(lv_mesh_name+".elem", skiprows=1, usecols=(1,2,3,4,5), dtype=int)  
     esize = len(elems)
@@ -155,83 +159,57 @@ def main(args):
   
   # set arguments
   mesh_dir = args.adas_folder[0]
-  meshtool_bin = args.meshtool_bin
+  if not os.path.isdir(mesh_dir):
+    raise NameError("ADAS folder not found")
+
   scar_threshold = args.scar_threshold
   bz_threshold = args.bz_threshold
+  if bz_threshold > scar_threshold:
+    raise ValueError("The border zone thrshold must be smaller than the scar threshold")
 
-  # check arguments
-  if not os.path.isdir(mesh_dir):
-    raise NameError("ADAS folder %s not found"%args.adas_folder[0])
+  meshtool_bin = args.meshtool_bin
+  mesh_res = args.mesh_res
+  
+  lv_mesh_name = mesh_dir + "/" + args.mesh_name[0]
 
+  # define file names
   full_pts_name = "%s/point_cloud_test.pts"%(mesh_dir)
   full_tags_name = "%s/tags_test.dat"%(mesh_dir)
+
+  if scar_threshold and bz_threshold:
+    lv_surf_name = glob.glob("%s/*Left Ventricle-DE-MRI.vtk"%mesh_dir)[0]
+  else:
+    lv_surf_name = "%s/Other/LV_M-DE-MRI.vtk"%mesh_dir  
+
+  if not os.path.isfile(lv_surf_name):
+    raise NameError("LV surface file not found")
   
+  # define tags
   healthy_tag = 1
   bz_tag = 2
   core_tag = 3
   excluded_tag = healthy_tag # same as healthy
-  
+
   # create point cloud with all layers and generate tags
   if scar_threshold and bz_threshold: # Using LV layer and thresholds
-    if bz_threshold > scar_threshold:
-      raise ValueError("The border zone thrshold must be smaller than the scar threshold")
-    
-    bz_scar_thresholds = [bz_threshold, scar_threshold]
-    get_point_cloud_tags_from_lv(mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag, bz_scar_thresholds)
+    get_point_cloud_tags_from_lv(mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag, [bz_threshold, scar_threshold])
   else: # Using regions surfaces
     get_point_cloud_tags_from_regions(mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag)  
 
   # generate tet mesh from LV surface
-  if scar_threshold and bz_threshold:
-    tmp_name = glob.glob("%s/*Left Ventricle-DE-MRI.vtk"%mesh_dir)
-    lv_surf_name = "\"" + tmp_name[0] + "\""
-  else:
-    lv_surf_name = "%s/Other/LV_M-DE-MRI.vtk"%mesh_dir
-
-  lv_mesh_name = "%s/lv_mesh_test"%mesh_dir
-  if not os.path.isfile(lv_mesh_name+".elem"):
-    if not os.path.isfile(lv_surf_name):
-      raise NameError("LV surface file not found: %s"%lv_surf_name)
-    
-    cmd = "%s generate mesh -surf=%s -ifmt=vtk -outmsh=%s -ofmt=carp_txt"%(meshtool_bin, lv_surf_name, lv_mesh_name)
-    print(cmd)
-    os.system(cmd)
-  else:
-    print("%s already exists. Mesh not generated."%lv_mesh_name)
+  mc.surf2mesh(meshtool_bin, lv_surf_name, lv_mesh_name)  
     
   # refine mesh for Eikonal or monodomain simulation
-  if args.monodomain == 1:
-    mesh_res = 0.35 
-  else:
-    mesh_res = 0.8 # coarse mesh for Eikonal
-    
   lv_mesh_name_ref = lv_mesh_name + "_%dum"%int(mesh_res*1000)
-  if not os.path.isfile(lv_mesh_name_ref+".elem"):
-    cmd = "%s resample mesh -msh=%s -avrg=%1.2f -outmsh=%s -postsmth=0 -ofmt=carp_txt"%(meshtool_bin, lv_mesh_name, mesh_res, lv_mesh_name_ref)
-    print(cmd)
-    os.system(cmd)
-  else:
-    print("%s already exists. No mesh refinement done."%lv_mesh_name_ref)    
-    
+  mc.refine_mesh(meshtool_bin, lv_mesh_name, mesh_res, lv_mesh_name_ref)
 
   # interpolate point cloud data onto tet mesh
   full_tags_name_pts = lv_mesh_name_ref + "_tags_pts.dat"
-  if not os.path.isfile(full_tags_name_pts):
-    cmd = "%s interpolate clouddata -omsh=%s -pts=%s -idat=%s -odat=%s -mode=1"%(meshtool_bin, lv_mesh_name_ref, full_pts_name, full_tags_name, full_tags_name_pts)
-    print(cmd)
-    os.system(cmd)
-  else:
-    print("%s already exists. No interpolation done."%full_tags_name_pts)
+  mc.interpolate_cloud(meshtool_bin, lv_mesh_name_ref, full_pts_name, full_tags_name, full_tags_name_pts)
   
   # interpolate tags from nodes to elements
   full_tags_name_elem = lv_mesh_name_ref + "_tags_elem.dat"
-  if not os.path.isfile(full_tags_name_elem):
-    cmd = "%s interpolate node2elem -omsh=%s -idat=%s -odat=%s"%(meshtool_bin, lv_mesh_name_ref, full_tags_name_pts, full_tags_name_elem)
-    print(cmd)
-    os.system(cmd)
-  else:
-    print("%s already exists. No interpolation done."%full_tags_name_elem)
-    
+  mc.node2elem(meshtool_bin, lv_mesh_name_ref, full_tags_name_pts, full_tags_name_elem)
   
   # round tags to nearest integer and assign to mesh
   full_tags_name_elem_int = lv_mesh_name_ref + "_tags_elem_int.dat"
@@ -244,11 +222,12 @@ if __name__== "__main__":
   parser = argparse.ArgumentParser()
   parser.formtter_class = argparse.ArgumentDefaultsHelpFormatter
   
-  parser.add_argument('--adas_folder', type=str, default=None, nargs='+', help='Provide the directory for the Adas3D data. For a threshold-based mesh, this is the path to the VTK_seperate_layers_3VTK folder. For a surface-based, this is the path to the VTK_seperate_layers folder.')
+  parser.add_argument('--adas_folder', type=str, default=None, nargs='+', help='Provide the directory for the Adas3D data.')
+  parser.add_argument('--mesh_name', type=str, default="lv_mesh", nargs='+', help='Define name of output mesh.')
+  parser.add_argument('--mesh_res', type=float, default=0.8, nargs='?', help='Mean resolution to refine final mesh.')
   parser.add_argument('--meshtool_bin', type=str, default="meshtool", nargs='?', help='Provide name of meshtool binary')
   parser.add_argument('--scar_threshold', type=float, default=None, nargs='?', help='For a threshold-based mesh define the scar threshold')
   parser.add_argument('--bz_threshold', type=float, default=None, nargs='?', help='For a threshold-based mesh define the bz threshold')
-  parser.add_argument('--monodomain', type=int, default=0, nargs='?', help='Refine mesh to 350um for monodomain simulation. Otherwise, the mesh is refined to 800um for Eikonal simulations.')
   
   args = parser.parse_args()
   
