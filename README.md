@@ -14,6 +14,8 @@ Usage:
 python3 adas_to_mesh.py --adas_folder="VTK_seperate_layers" --scar_threshold=0.8 --bz_threshold=0.6 --mesh_res=0.35 --mesh_name="lv_mesh_monodomain"
 
 Example mesh generated from an Adas3D dataset using threshold method. Blue is healthy (tag=1), light read is border zone (tag=2), and dark red is scar (tag=3)
+
+
 ![mesh800um](https://user-images.githubusercontent.com/81109384/126347516-59d72b2f-9444-412f-b035-765e9ac31e32.png)
 
 
