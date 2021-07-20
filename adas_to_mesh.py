@@ -167,12 +167,15 @@ def main(args):
   if bz_threshold > scar_threshold:
     raise ValueError("The border zone thrshold must be smaller than the scar threshold")
 
-  meshtool_bin = args.meshtool_bin
-  mesh_res = args.mesh_res
+  meshtool_bin = args.meshtool_bin   
+  if not os.path.isdir(mesh_dir):
+    raise NameError("Cannot find meshtool. If binary not \"meshtool\", please define \"meshtool_bin\" parameter")
   
-  lv_mesh_name = mesh_dir + "/" + args.mesh_name[0]
+  mesh_res = args.mesh_res
+  base_name = args.mesh_name[0]
 
   # define file names
+  lv_mesh_name = mesh_dir + "/" + base_name
   full_pts_name = "%s/point_cloud_test.pts"%(mesh_dir)
   full_tags_name = "%s/tags_test.dat"%(mesh_dir)
 
