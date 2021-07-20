@@ -1,17 +1,24 @@
 # adas3D_pipeline
-Repository for pipeline prototype to create labeled volumetric mesh from Adas3D data. Reads in surfaces describing the different LV regions, generates a point cloud with these, generates a tetrahedral mesh, and interpolates the point cloud data onto the mesh.
+Repository for pipeline prototype to create labeled volumetric meshes from Adas3D data. The meshes can be created from surfaces describing the different LV regions or surfaces plus scalar fields for different ventricular layers. The code reads the surfaces and tags as a point cloud with data, generates a tetrahedral mesh, and interpolates the point cloud data onto the mesh.
 
-## Parameters
-Path to data folder containing "VTK_seperate_layers_3VTK/" folder with layers 10 to 90. Each layer subfolder must contain "BZ", "CO", "HE", and "EX" VTK polydata files. These files represent surfaces for border zone, scar core, healthy tissue, and excluded regions. The folder must also contain a subfolder "Other" with the LV surface mesh called "LV_M-DE-MRI.vtk".
+## Examples
 
-Also needs the meshtool binary name.
+A mesh can be generated using the surfaces defining scar, BZ, and healthy regions. In this case, the mesh tags are generated based on each surface. An example of usage is shown below. A coarse mesh (resolution=0.8mm), appropriate for Eikonal simulations is generated.
 
-## Example
-Showing a mesh generated from an Adas3D dataset. Blue is healthy (tag=1), light read is border zone (tag=2), and dark red is scar (tag=3)
+Usage:
+python3 adas_to_mesh.py --adas_folder="VTK_seperate_layers_3VTK" --mesh_res=0.8 --mesh_name="lv_mesh_eikonal"
 
-/home/cmc16/Dropbox/DutchCMRData/VTK_seperate_layers_3VTK/lv_mesh_tagged.png![lv_mesh_tagged](https://user-images.githubusercontent.com/81109384/124743326-8abecf00-df15-11eb-9616-833ea6ad0ff9.png)
+A mesh can be also generated using the LV surface layers defining with a scalar field representing the normalized LGE intensity. In this case, the mesh tags for  scar, BZ, and healthy are generated based set thresholds for BZ ans scar. An example of usage is shown below. A fine mesh (resolution=0.35mm), appropriate for monodomain simulations is generated.
+
+Usage:
+python3 adas_to_mesh.py --adas_folder="VTK_seperate_layers" --scar_threshold=0.8 --bz_threshold=0.6 --mesh_res=0.35 --mesh_name="lv_mesh_monodomain"
+
+Example mesh generated from an Adas3D dataset using threshold method. Blue is healthy (tag=1), light read is border zone (tag=2), and dark red is scar (tag=3)
+
 
 ## Requirements
 Python 3.6
 Numpy 1.18.5
 Meshtool (https://bitbucket.org/aneic/meshtool/src/master/)
+PyVista (https://docs.pyvista.org/)
+
