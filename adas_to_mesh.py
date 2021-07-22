@@ -12,10 +12,10 @@ def read_vtk_polydata(mesh_name):
   pts = mesh.points
   data = mesh.active_scalars
   
-  print(mesh_name)
-  print("Pts size:", pts)
-  if not type(data) == None:
-    print("Data size:", data)
+  #print(mesh_name)
+  #print("Pts size:", pts)
+  #if not type(data) == None:
+    #print("Data size:", data)
   
   return pts, data
 
@@ -82,8 +82,7 @@ def get_point_cloud_tags_from_regions(mesh_dir, full_pts_name, full_tags_name, h
     
     # read in all surfaces as points clouds and concatate points and tags, excluding "excluded" surfaces
     files_list = os.listdir(mesh_dir)
-    print(mesh_dir)
-    print(files_list)
+
     for file_name in files_list:
       if file_name.startswith("Layer"):
         layer = file_name.split("Layer")[1]
@@ -120,11 +119,16 @@ def get_point_cloud_tags_from_lv(mesh_dir, full_pts_name, full_tags_name, health
     tags_list = [healthy_tag, bz_tag, core_tag]
     
     files_list = os.listdir(mesh_dir)
-    for file_name in files_list:
+    print(files_list)
+
+    for file_name in files_list:      
       if file_name.endswith("_Excluded-DE-MRI.vtk"):
+        print(file_name)
         base_name = file_name.split("_Excluded")[0]
         layer_name = base_name + "-DE-MRI"
+        print(layer_name)
         excluded_name = base_name + "_Excluded-DE-MRI"
+        print(excluded_name)
       
         if os.path.isfile(layer_name+".vtk"):
           point_cloud, tags_data = get_layer(layer_name, excluded_name, point_cloud, tags_data, excluded_tag, tags_list, bz_scar_thresholds)          
