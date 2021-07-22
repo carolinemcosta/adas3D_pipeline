@@ -119,15 +119,14 @@ def get_point_cloud_tags_from_lv(mesh_dir, full_pts_name, full_tags_name, health
     tags_list = [healthy_tag, bz_tag, core_tag]
     
     files_list = os.listdir(mesh_dir)
-    print(files_list)
 
     for file_name in files_list:      
       if file_name.endswith("_Excluded-DE-MRI.vtk"):
         print(file_name)
         base_name = file_name.split("_Excluded")[0]
-        layer_name = base_name + "-DE-MRI"
+        layer_name = mesh_dir + "/" + base_name + "-DE-MRI"
         print(layer_name)
-        excluded_name = base_name + "_Excluded-DE-MRI"
+        excluded_name = mesh_dir + "/" + base_name + "_Excluded-DE-MRI"
         print(excluded_name)
       
         if os.path.isfile(layer_name+".vtk"):
