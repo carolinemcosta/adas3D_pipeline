@@ -82,6 +82,8 @@ def get_point_cloud_tags_from_regions(mesh_dir, full_pts_name, full_tags_name, h
     
     # read in all surfaces as points clouds and concatate points and tags, excluding "excluded" surfaces
     files_list = os.listdir(mesh_dir)
+    print(mesh_dir)
+    print(files_list)
     for file_name in files_list:
       if file_name.startswith("Layer"):
         layer = file_name.split("Layer")[1]
