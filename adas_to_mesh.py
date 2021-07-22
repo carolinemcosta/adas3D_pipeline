@@ -12,6 +12,11 @@ def read_vtk_polydata(mesh_name):
   pts = mesh.points
   data = mesh.active_scalars
   
+  print(mesh_name)
+  print("Pts size:", pts)
+  if not type(data) == None:
+    print("Data size:", data)
+  
   return pts, data
 
 
@@ -180,7 +185,7 @@ def main(args):
   full_tags_name = "%s/tags_test.dat"%(mesh_dir)
 
   if scar_threshold and bz_threshold:
-    lv_surf_name = glob.glob("%s/*Left Ventricle-DE-MRI.vtk"%mesh_dir)[0]
+    lv_surf_name = glob.glob("%s/*Left*Ventricle-DE-MRI.vtk"%mesh_dir)[0]
   else:
     lv_surf_name = "%s/Other/LV_M-DE-MRI.vtk"%mesh_dir  
 
