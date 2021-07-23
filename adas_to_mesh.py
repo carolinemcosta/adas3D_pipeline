@@ -3,6 +3,7 @@ import numpy as np
 import os
 import pyvista as pv
 import glob
+from shutil import copy
 
 import meshtool_cmd as mc
 
@@ -11,11 +12,6 @@ def read_vtk_polydata(mesh_name):
   mesh = pv.read(mesh_name)
   pts = mesh.points
   data = mesh.active_scalars
-  
-  #print(mesh_name)
-  #print("Pts size:", pts)
-  #if not type(data) == None:
-    #print("Data size:", data)
   
   return pts, data
 
@@ -156,13 +152,11 @@ def assign_int_tags(full_tags_name_elem, full_tags_name_elem_int, lv_mesh_name, 
       f.write("%d\n"%esize)
       for i in range(esize):
         f.write("Tt %d %d %d %d %d\n"%(elems[i,0], elems[i,1], elems[i,2], elems[i,3], tag_data_int[i]))
-
-    cmd="ln -s %s.lon %s.lon"%(lv_mesh_name, lv_mesh_name_tag)
-    os.system(cmd)
-    cmd="ln -s %s.pts %s.pts"%(lv_mesh_name, lv_mesh_name_tag)
-    os.system(cmd)
+    
+    copy(lv_mesh_name+".lon",lv_mesh_name_tag+".lon")
+    copy(lv_mesh_name+".pts",lv_mesh_name_tag+".pts")
   else:
-    print("%s already exists. No tags assigned."%lv_mesh_name_tag)
+    print("%s already exists. No tags assigned."%lv_mesh_name_tag+".elem")
   
   
 def main(args):
@@ -232,6 +226,18 @@ def main(args):
   # convert from mm to um
   mc.to_mm(meshtool_bin, lv_mesh_name_tag)
   
+  # convert to VTK
+  lv_mesh_name_tag_final = lv_mesh_name_tag + "_um"
+  mc.to_vtk(meshtool_bin, lv_mesh_name_tag_final)
+  
+  # cleanup directory
+  if args.cleanup:
+    print("Cleaning up...")
+    os.system("rm %s.*"%lv_mesh_name)
+    os.system("rm %s.*"%lv_mesh_name_ref)
+    os.system("rm %s_tags*"%lv_mesh_name_ref)
+    os.system("rm %s.*"%lv_mesh_name_tag)    
+  
       
 if __name__== "__main__":
   
@@ -244,6 +250,7 @@ if __name__== "__main__":
   parser.add_argument('--meshtool_bin', type=str, default="meshtool", nargs='?', help='Provide name of meshtool binary')
   parser.add_argument('--scar_threshold', type=float, default=None, nargs='?', help='For a threshold-based mesh define the scar threshold')
   parser.add_argument('--bz_threshold', type=float, default=None, nargs='?', help='For a threshold-based mesh define the bz threshold')
+  parser.add_argument('--cleanup', type=int, default=0, nargs='?', help='Set to 1 to delete intermediate files generated during meshing')
   
   args = parser.parse_args()
   

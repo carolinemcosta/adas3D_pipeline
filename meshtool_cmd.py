@@ -42,9 +42,17 @@ def node2elem(meshtool_bin, mesh_name, tags_name_pts, tags_name_elem):
 def to_mm(meshtool_bin, mesh_name):
   mesh_name_um = mesh_name + "_um"
   if not os.path.isfile(mesh_name_um+".elem"):    
-    cmd = "%s convert -imsh=%s -omsh=%s -ofmt=carp_txt"%(meshtool_bin, mesh_name, mesh_name_um)
+    cmd = "%s convert -imsh=%s -omsh=%s -ofmt=carp_txt -scale=1000"%(meshtool_bin, mesh_name, mesh_name_um)
     print(cmd)
     os.system(cmd)
   else:
     print("%s already exists. No scaling done."%mesh_name_um)
+
+def to_vtk(meshtool_bin, mesh_name):
+  if not os.path.isfile(mesh_name+".vtk"):    
+    cmd = "%s convert -imsh=%s -omsh=%s -ofmt=vtk"%(meshtool_bin, mesh_name, mesh_name)
+    print(cmd)
+    os.system(cmd)
+  else:
+    print("%s already exists. No VTK file generated."%mesh_name)
     
