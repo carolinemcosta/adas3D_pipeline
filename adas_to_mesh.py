@@ -161,83 +161,86 @@ def assign_int_tags(full_tags_name_elem, full_tags_name_elem_int, lv_mesh_name, 
   
 def main(args):
   
-  # set arguments
+  # define mesh names
   mesh_dir = args.adas_folder[0]
   if not os.path.isdir(mesh_dir):
     raise NameError("ADAS folder not found")
 
-  scar_threshold = args.scar_threshold
-  bz_threshold = args.bz_threshold
-  if bz_threshold > scar_threshold:
-    raise ValueError("The border zone thrshold must be smaller than the scar threshold")
-
-  meshtool_bin = args.meshtool_bin   
-  if not os.path.isdir(mesh_dir):
-    raise NameError("Cannot find meshtool. If binary not \"meshtool\", please define \"meshtool_bin\" parameter")
-  
   mesh_res = args.mesh_res
   base_name = args.mesh_name[0]
 
-  # define file names
   lv_mesh_name = mesh_dir + "/" + base_name
-  full_pts_name = "%s/point_cloud.pts"%(mesh_dir)
-  full_tags_name = "%s/point_cloud_tags.dat"%(mesh_dir)
+  lv_mesh_name_tag_final = lv_mesh_name + "_%dum"%int(mesh_res*1000) + "_tagged_um"
 
-  if scar_threshold and bz_threshold:
-    lv_surf_name = glob.glob("%s/*Left*Ventricle-DE-MRI.vtk"%mesh_dir)[0]
-  else:
-    lv_surf_name = "%s/Other/LV_M-DE-MRI.vtk"%mesh_dir  
+  if not os.path.isfile(lv_mesh_name_tag_final+".pts"):
+    # set arguments
+    scar_threshold = args.scar_threshold
+    bz_threshold = args.bz_threshold
+    if bz_threshold > scar_threshold:
+      raise ValueError("The border zone thrshold must be smaller than the scar threshold")
 
-  if not os.path.isfile(lv_surf_name):
-    raise NameError("LV surface file not found")
-  
-  # define tags
-  healthy_tag = 1
-  bz_tag = 2
-  core_tag = 3
-  excluded_tag = healthy_tag # same as healthy
+    meshtool_bin = args.meshtool_bin   
+    if not os.path.isdir(mesh_dir):
+      raise NameError("Cannot find meshtool. If binary not \"meshtool\", please define \"meshtool_bin\" parameter")
 
-  # create point cloud with all layers and generate tags
-  if scar_threshold and bz_threshold: # Using LV layer and thresholds
-    get_point_cloud_tags_from_lv(mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag, [bz_threshold, scar_threshold])
-  else: # Using regions surfaces
-    get_point_cloud_tags_from_regions(mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag)  
+    if scar_threshold and bz_threshold:
+      lv_surf_name = glob.glob("%s/*Left*Ventricle-DE-MRI.vtk"%mesh_dir)[0]
+    else:
+      lv_surf_name = "%s/Other/LV_M-DE-MRI.vtk"%mesh_dir  
 
-  # generate tet mesh from LV surface
-  mc.surf2mesh(meshtool_bin, lv_surf_name, lv_mesh_name)  
+    if not os.path.isfile(lv_surf_name):
+      raise NameError("LV surface file not found")
     
-  # refine mesh for Eikonal or monodomain simulation
-  lv_mesh_name_ref = lv_mesh_name + "_%dum"%int(mesh_res*1000)
-  mc.refine_mesh(meshtool_bin, lv_mesh_name, mesh_res, lv_mesh_name_ref)
+    # define tags
+    healthy_tag = 1
+    bz_tag = 2
+    core_tag = 3
+    excluded_tag = healthy_tag # same as healthy
 
-  # interpolate point cloud data onto tet mesh
-  full_tags_name_pts = lv_mesh_name_ref + "_tags_pts.dat"
-  mc.interpolate_cloud(meshtool_bin, lv_mesh_name_ref, full_pts_name, full_tags_name, full_tags_name_pts)
-  
-  # interpolate tags from nodes to elements
-  full_tags_name_elem = lv_mesh_name_ref + "_tags_elem.dat"
-  mc.node2elem(meshtool_bin, lv_mesh_name_ref, full_tags_name_pts, full_tags_name_elem)
-  
-  # round tags to nearest integer and assign to mesh
-  full_tags_name_elem_int = lv_mesh_name_ref + "_tags_elem_int.dat"
-  lv_mesh_name_tag = lv_mesh_name_ref + "_tagged"
-  assign_int_tags(full_tags_name_elem, full_tags_name_elem_int, lv_mesh_name_ref, lv_mesh_name_tag)
-  
-  # convert from mm to um
-  mc.to_mm(meshtool_bin, lv_mesh_name_tag)
-  
-  # convert to VTK
-  lv_mesh_name_tag_final = lv_mesh_name_tag + "_um"
-  mc.to_vtk(meshtool_bin, lv_mesh_name_tag_final)
-  
-  # cleanup directory
-  if args.cleanup:
-    print("Cleaning up...")
-    os.system("rm %s.*"%lv_mesh_name)
-    os.system("rm %s.*"%lv_mesh_name_ref)
-    os.system("rm %s_tags*"%lv_mesh_name_ref)
-    os.system("rm %s.*"%lv_mesh_name_tag)    
-  
+    # create point cloud with all layers and generate tags
+    full_pts_name = "%s/point_cloud.pts"%(mesh_dir)
+    full_tags_name = "%s/point_cloud_tags.dat"%(mesh_dir)
+
+    if scar_threshold and bz_threshold: # Using LV layer and thresholds
+      get_point_cloud_tags_from_lv(mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag, [bz_threshold, scar_threshold])
+    else: # Using regions surfaces
+      get_point_cloud_tags_from_regions(mesh_dir, full_pts_name, full_tags_name, healthy_tag, bz_tag, core_tag, excluded_tag)  
+
+    # generate tet mesh from LV surface
+    mc.surf2mesh(meshtool_bin, lv_surf_name, lv_mesh_name)  
+      
+    # refine mesh for Eikonal or monodomain simulation
+    lv_mesh_name_ref = lv_mesh_name + "_%dum"%int(mesh_res*1000)
+    mc.refine_mesh(meshtool_bin, lv_mesh_name, mesh_res, lv_mesh_name_ref)
+
+    # interpolate point cloud data onto tet mesh
+    full_tags_name_pts = lv_mesh_name_ref + "_tags_pts.dat"
+    mc.interpolate_cloud(meshtool_bin, lv_mesh_name_ref, full_pts_name, full_tags_name, full_tags_name_pts)
+    
+    # interpolate tags from nodes to elements
+    full_tags_name_elem = lv_mesh_name_ref + "_tags_elem.dat"
+    mc.node2elem(meshtool_bin, lv_mesh_name_ref, full_tags_name_pts, full_tags_name_elem)
+    
+    # round tags to nearest integer and assign to mesh
+    full_tags_name_elem_int = lv_mesh_name_ref + "_tags_elem_int.dat"
+    lv_mesh_name_tag = lv_mesh_name_ref + "_tagged"
+    assign_int_tags(full_tags_name_elem, full_tags_name_elem_int, lv_mesh_name_ref, lv_mesh_name_tag)
+    
+    # convert from mm to um
+    mc.to_mm(meshtool_bin, lv_mesh_name_tag)
+    
+    # convert to VTK
+    mc.to_vtk(meshtool_bin, lv_mesh_name_tag_final)
+    
+    # cleanup directory
+    if args.cleanup:
+      print("Cleaning up...")
+      os.system("rm %s.*"%lv_mesh_name)
+      os.system("rm %s.*"%lv_mesh_name_ref)
+      os.system("rm %s_tags*"%lv_mesh_name_ref)
+      os.system("rm %s.*"%lv_mesh_name_tag)    
+  else:
+    print("Final mesh already exists: %s. Nothing done."%lv_mesh_name_tag_final)
       
 if __name__== "__main__":
   
