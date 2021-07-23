@@ -180,8 +180,8 @@ def main(args):
 
   # define file names
   lv_mesh_name = mesh_dir + "/" + base_name
-  full_pts_name = "%s/point_cloud_test.pts"%(mesh_dir)
-  full_tags_name = "%s/tags_test.dat"%(mesh_dir)
+  full_pts_name = "%s/point_cloud.pts"%(mesh_dir)
+  full_tags_name = "%s/point_cloud_tags.dat"%(mesh_dir)
 
   if scar_threshold and bz_threshold:
     lv_surf_name = glob.glob("%s/*Left*Ventricle-DE-MRI.vtk"%mesh_dir)[0]
